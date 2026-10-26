@@ -720,6 +720,21 @@
     html += `<div class="grid one" style="margin-top:12px">
       ${card('CI 分层历史', ciLanes(L), { sub: `${range} · 各层共用日期轴，每格一次 run，同一天自上而下按时间排列（上早下晚）· 点击打开 run` })}
     </div>`;
+    const gates = d.gates;
+    if (gates) {
+      const GATE_STATE = { pass: ['通过', 'good'], fail: ['失败', 'bad'], observe_fail: ['观察失败', 'warn'], waived: ['豁免', ''], not_applicable: ['不适用', ''], error: ['错误', 'bad'] };
+      const STAGE = { discovered: '已发现', 'gates-running': '门禁运行中', 'cases-pending': '用例待补', observing: '观察中', enforced: '已强制', failing: '失败' };
+      const c = gates.cases || {};
+      const gateRows = (gates.lanes || []).map((lane) => {
+        const [name, tone] = GATE_STATE[lane.verdict] || [lane.verdict, ''];
+        const passed = (lane.results || []).filter((r) => r.status === 'pass').length;
+        const total = (lane.results || []).length;
+        return `<tr><td><code>${esc(lane.lane)}</code>${lane.level ? ` <span class="muted">${esc(lane.level)}</span>` : ''}</td><td>${badge(name, tone)}</td><td>${passed}/${total}</td><td>${esc(lane.event || '—')}</td></tr>`;
+      }).join('');
+      const run = gates.run || {};
+      const head = `<div class="muted">最新门禁 run ${run.url ? link(run.url, `#${run.id}`) : '—'} · ${esc(run.event || '—')}${run.sha ? ` · <code>${esc(run.sha.slice(0, 7))}</code>` : ''} · 用例总数 ${n(c.total)}（ready ${n(c.ready)} / todo ${n(c.todo)} / skipped ${n(c.skipped)}）${gates.stage ? ` · ${esc(STAGE[gates.stage] || gates.stage)}` : ''}</div>`;
+      html += `<div class="grid one" style="margin-top:12px">${card('质量门禁', `${head}<div class="table-wrap" style="margin-top:8px"><table><thead><tr><th>Lane</th><th>结论</th><th>命令通过</th><th>事件</th></tr></thead><tbody>${gateRows}</tbody></table></div>`, { sub: '来自 ci-gates-reports；命令输出不进入公开快照' })}</div>`;
+    }
     html += `<div class="grid wide" style="margin-top:12px">
       ${card(`最近一次${trunk} run`, d.latest_main ? `${kv([
         ['Run', `${link(d.latest_main.run.url, esc(d.latest_main.run.title))} ${conclusionBadge(d.latest_main.run.conclusion)}`],
