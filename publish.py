@@ -129,6 +129,25 @@ def publish_batch(gh, repository, branch, base, files, *, source_token=None):
     return commit["sha"]
 
 
+def private_publish_allowed():
+    """Explicit opt-in for publishing a private source to a public board."""
+    return os.environ.get("GSB_ALLOW_PRIVATE_PUBLISH", "").strip().lower() in ("1", "true", "yes", "on")
+
+
+def check_source_visibility(gh, repo, publish_repo):
+    """Refuse a private source unless the operator opted in for this deployment.
+
+    The guard runs for every publish, not only for local exports: a private source
+    reaching a public Pages repository must be an explicit, reviewable choice.
+    """
+    if not publish_repo or private_publish_allowed():
+        return
+    meta = gh.get(f"/repos/{repo}")
+    if meta.get("private") or meta.get("visibility", "public") != "public":
+        raise ValueError("private source cannot be published to public Pages; "
+                         "set GSB_ALLOW_PRIVATE_PUBLISH=1 if exposing it is intended")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo", default="openJiuwen-ai/sciencediscovery")
@@ -146,10 +165,7 @@ def main():
     try:
         settings = json.loads(Path(args.settings).read_text())
         deployment = deployment_for(args.repo, settings, args.publish_repo)
-        if args.publish_repo and os.environ.get("GSB_ALLOW_PRIVATE", "").strip().lower() in ("1", "true", "yes", "on"):
-            source_meta = gh.get(f"/repos/{args.repo}")
-            if source_meta.get("private") or source_meta.get("visibility", "public") != "public":
-                raise ValueError("private source cannot be published to public Pages; use the local server")
+        check_source_visibility(gh, args.repo, args.publish_repo)
         sync = records = None
         if args.incremental:
             from gsb.sync import Sync

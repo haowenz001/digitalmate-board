@@ -73,6 +73,37 @@ test/cases/case-catalog.yaml        # 先空 catalog
 
 3. 期望：`repo` 为 `DigitalMate`；`lanes` 非空且与这次 `CI` 运行的结论一致；CI / 测试 / 覆盖率三个页面有数据。
 
+## 私仓发布（本仓的例外）
+
+上游模板默认拒绝「private 源仓 → 公开 Pages」。本仓显式放行，改动集中在四个文件：
+
+| 文件 | 行 | 作用 |
+| --- | --- | --- |
+| `gsb/config.py` | `allow_private_publish` | 读取 `GSB_ALLOW_PRIVATE_PUBLISH`（默认关闭） |
+| `gsb/project.py` | 私仓检查 | `allow_private or allow_private_publish` |
+| `gsb/sync.py` | 私仓检查（增量路径） | 同上 |
+| `publish.py` | 发布前校验 | 只有 `GSB_ALLOW_PRIVATE_PUBLISH=1` 才跳过来源仓可见性检查 |
+
+采集 workflow 里对应的环境变量：
+
+```yaml
+env:
+  GITHUB_TOKEN: ${{ secrets.SOURCE_TOKEN }}      # 只读私仓
+  GSB_PUBLISH_TOKEN: ${{ github.token }}          # 写本站 site/
+  GSB_ALLOW_PRIVATE_PUBLISH: '1'
+```
+
+风险清单（都在公开页面上可见）：
+
+- PR / Issue 标题与正文摘要、作者、时间；
+- 测试用例名、失败原因、命令行的非敏感部分；
+- 文件树、包名、workflow 名称、release 名称；
+- E2E 截图与 HTML 报告（由 `e2e_records` 挑选，仍在 artifact 保留期内时）。
+
+不会公开：token、日志原文、代码内容（只读树 API 的路径与大小）、Dependabot/安全告警（`ops` 分区在公开快照里被裁剪）。
+
+回退：`BOARD_COLLECT=false` 停止采集；要真正收回，需要同时删除 `site/` 快照、`.sync/` 历史和 git 历史中的相关提交，再强制推送。
+
 ## 未接入前的边界
 
 - 本仓不运行源仓的测试，也不保存源仓日志原文；没有证据时显示「未知」，不显示绿色。

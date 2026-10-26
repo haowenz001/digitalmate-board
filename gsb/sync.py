@@ -375,8 +375,10 @@ class Sync:
     def collect(self, changed_runs=()):
         self.changed_jobs = []
         self.meta = self.gh.get(self.base)
-        if (self.meta.get("private") or self.meta.get("visibility", "public") != "public") and not self.cfg.allow_private:
-            raise ValueError("public dashboard requires a public source")
+        if (self.meta.get("private") or self.meta.get("visibility", "public") != "public") and not (
+                self.cfg.allow_private or self.cfg.allow_private_publish):
+            raise ValueError("public dashboard requires a public source; "
+                             "set GSB_ALLOW_PRIVATE_PUBLISH=1 to publish a private source on purpose")
         self.guarded("reruns", lambda: self.refresh_changed_runs(changed_runs))
         self.guarded("rerun_details", lambda: self.pending(count=20, priority={"run:" + key for _, key in self.changed_jobs}, only_priority=True))
         # Fair lane budgets prevent a large initial backfill starving live data.

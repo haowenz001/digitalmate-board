@@ -18,10 +18,10 @@ concurrency:
 
 jobs:
   collect:
-    # DigitalMate is still a private repository, and this public board must not
-    # publish its data. The job stays skipped until the source is public: set
-    # repository variable BOARD_COLLECT=true (Settings -> Secrets and variables
-    # -> Actions -> Variables) after the source repository goes public.
+    # Collection is opt-in: set repository variable BOARD_COLLECT=true
+    # (Settings -> Secrets and variables -> Actions -> Variables) to run it.
+    # This deployment publishes a private source on purpose, so enabling the
+    # switch makes its PR titles, issues and test names public.
     if: vars.BOARD_COLLECT == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -37,7 +37,12 @@ jobs:
         run: python3 collection_context.py
       - name: Collect source and publish snapshot
         env:
-          GITHUB_TOKEN: ${{ github.token }}
+          # Read-only token for the private source repository.
+          GITHUB_TOKEN: ${{ secrets.SOURCE_TOKEN }}
+          # Contents-write token for this dashboard repository.
+          GSB_PUBLISH_TOKEN: ${{ github.token }}
+          # Explicit opt-in: the board must not publish a private source by accident.
+          GSB_ALLOW_PRIVATE_PUBLISH: '1'
         run: |
           args=(--repo "${{ steps.context.outputs.source }}" --publish-repo "${{ github.repository }}")
           if [ -f .sync/state.json ]; then

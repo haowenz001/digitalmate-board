@@ -1,18 +1,19 @@
 import json
+import os
 from pathlib import Path
 import re
 import tempfile
 import unittest
 from unittest.mock import patch
 from gsb.github import GitHubError
-from publish import export_site, publish, publish_batch, deployment_for, ROOT
+from publish import export_site, publish, publish_batch, deployment_for, check_source_visibility, ROOT
 
 
 class DeploymentTests(unittest.TestCase):
     def test_cli_separates_source_and_destination_credentials(self):
         import publish as publisher
         from types import SimpleNamespace
-        source, destination = SimpleNamespace(token='read-token'), SimpleNamespace(token='write-token')
+        source, destination = SimpleNamespace(token='read-token', get=lambda path: {'private': False}), SimpleNamespace(token='write-token')
         with patch('sys.argv',['publish.py','--repo','example/source','--publish-repo','example/board']), \
              patch.dict('os.environ',{'GSB_PUBLISH_TOKEN':'write-token'}), \
              patch.object(publisher,'discover_token',return_value=('read-token','env')), \
@@ -37,6 +38,41 @@ class DeploymentTests(unittest.TestCase):
         for source, wrong in [('openJiuwen-ai/sciencediscovery', experiment), ('ScienceDiscovery/sciencediscovery', production)]:
             with self.assertRaises(ValueError):
                 deployment_for(source, settings, wrong['repository'])
+
+class SourceVisibilityTests(unittest.TestCase):
+    class GH:
+        def __init__(self, private):
+            self.private = private
+            self.calls = 0
+        def get(self, path):
+            self.calls += 1
+            return {'private': self.private, 'visibility': 'private' if self.private else 'public'}
+
+    def test_private_source_is_refused_without_the_explicit_opt_in(self):
+        gh = self.GH(True)
+        with patch.dict('os.environ', {}, clear=False):
+            os.environ.pop('GSB_ALLOW_PRIVATE_PUBLISH', None)
+            with self.assertRaises(ValueError):
+                check_source_visibility(gh, 'owner/private', 'owner/board')
+
+    def test_private_source_is_allowed_only_with_the_opt_in(self):
+        gh = self.GH(True)
+        with patch.dict('os.environ', {'GSB_ALLOW_PRIVATE_PUBLISH': '1'}):
+            check_source_visibility(gh, 'owner/private', 'owner/board')
+        self.assertEqual(gh.calls, 0)
+
+    def test_local_export_skips_the_publish_guard(self):
+        gh = self.GH(True)
+        check_source_visibility(gh, 'owner/private', None)
+        self.assertEqual(gh.calls, 0)
+
+    def test_public_source_needs_no_opt_in(self):
+        gh = self.GH(False)
+        with patch.dict('os.environ', {}, clear=False):
+            os.environ.pop('GSB_ALLOW_PRIVATE_PUBLISH', None)
+            check_source_visibility(gh, 'owner/public', 'owner/board')
+        self.assertEqual(gh.calls, 1)
+
 
 ROOT=Path(__file__).resolve().parents[1]
 class PublishingTests(unittest.TestCase):

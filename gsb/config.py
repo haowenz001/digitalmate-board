@@ -37,6 +37,10 @@ class Config:
     local_checkout: str | None = None     # optional local clone used when the git tree API fails
     disk_cache: bool = True               # GSB_DISK_CACHE=0 keeps the whole snapshot in memory only
     allow_private: bool = False           # GSB_ALLOW_PRIVATE=1 for loopback/local-only export
+    # GSB_ALLOW_PRIVATE_PUBLISH=1 is the explicit opt-in for a private source that is
+    # deliberately published to a public board. The board decrypts nothing, so whoever
+    # sets this flag accepts that titles, paths and test names become public.
+    allow_private_publish: bool = False
 
     @classmethod
     def from_env(cls, **overrides) -> "Config":
@@ -55,6 +59,7 @@ class Config:
             local_checkout=os.environ.get("GSB_LOCAL_CHECKOUT") or None,
             disk_cache=os.environ.get("GSB_DISK_CACHE", "1").strip().lower() not in ("0", "false", "no", "off"),
             allow_private=os.environ.get("GSB_ALLOW_PRIVATE", "0").strip().lower() in ("1", "true", "yes", "on"),
+            allow_private_publish=os.environ.get("GSB_ALLOW_PRIVATE_PUBLISH", "0").strip().lower() in ("1", "true", "yes", "on"),
         )
         names = os.environ.get("GSB_TEST_ARTIFACTS")
         if names:
