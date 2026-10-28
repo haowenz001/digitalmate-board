@@ -17,9 +17,9 @@ RULES = json.loads((ROOT / 'board-config.json').read_text())['workflows']
 NOW = datetime(2026, 9, 22, 12, tzinfo=timezone.utc)
 
 
-def run(ident, name='CI', event='pull_request', created='2026-09-22T03:00:00Z', branch='feat', conclusion='success',
+def run(ident, name='Code Check', event='pull_request', created='2026-09-22T03:00:00Z', branch='feat', conclusion='success',
         status='completed', attempt=1, pull_requests=(), **extra):
-    return dict(id=ident, attempt=attempt, name=name, workflow_id={'CI': 1, 'Nightly': 2, 'Release': 3}.get(name, 9),
+    return dict(id=ident, attempt=attempt, name=name, workflow_id={'Code Check': 1, 'Nightly': 2, 'Release': 3}.get(name, 9),
                 event=event, status=status, conclusion=conclusion, branch=branch, sha=f'{ident:040d}', created_at=created,
                 url=f'https://github.com/{REPO}/actions/runs/{ident}', pull_requests=list(pull_requests), title=f'run {ident}',
                 **extra)
@@ -37,19 +37,19 @@ def points(lane):
 class LaneClassificationTests(unittest.TestCase):
     def test_lanes_follow_how_actions_are_triggered(self):
         cases = [
-            ('CI', 'pull_request', 'feat', 'pr'),
-            ('CI', 'pull_request_target', 'feat', 'pr'),
+            ('Code Check', 'pull_request', 'feat', 'pr'),
+            ('Code Check', 'pull_request_target', 'feat', 'pr'),
             ('Nightly', 'workflow_call', 'main', None),
             ('Release', 'workflow_call', 'main', None),
-            ('CI', 'push', 'main', 'main'),
-            ('CI', 'workflow_dispatch', 'main', 'main'),
-            ('CI', 'push', 'master', None),
+            ('Code Check', 'push', 'main', 'main'),
+            ('Code Check', 'workflow_dispatch', 'main', 'main'),
+            ('Code Check', 'push', 'master', None),
             ('Nightly', 'schedule', 'main', 'daily'),
             ('Nightly', 'workflow_dispatch', 'main', 'daily'),
             ('Release', 'push', '0.3.0', 'release'),
-            ('CI', 'workflow_call', 'main', None),
-            # A CI run carrying its caller's trigger can only be a reusable call.
-            ('CI', 'schedule', 'main', None),
+            ('Code Check', 'workflow_call', 'main', None),
+            # A Code Check run carrying its caller's trigger can only be a reusable call.
+            ('Code Check', 'schedule', 'main', None),
             ('.github/workflows/test-policy.yml', 'push', 'feat', None),
         ]
         for name, event, branch, expected in cases:
@@ -57,12 +57,12 @@ class LaneClassificationTests(unittest.TestCase):
                 self.assertEqual(lane_of(dict(name=name, event=event, branch=branch), RULES, 'main'), expected)
 
     def test_missing_trigger_degrades_without_guessing(self):
-        self.assertEqual(lane_of(dict(name='CI', event=None, branch='feat', pull_requests=[5]), RULES, 'main'), 'pr')
-        self.assertEqual(lane_of(dict(name='CI', event=None, branch='main'), RULES, 'main'), None)
-        self.assertEqual(lane_of(dict(name='CI', branch='main'), None, 'main'), None)
+        self.assertEqual(lane_of(dict(name='Code Check', event=None, branch='feat', pull_requests=[5]), RULES, 'main'), 'pr')
+        self.assertEqual(lane_of(dict(name='Code Check', event=None, branch='main'), RULES, 'main'), None)
+        self.assertEqual(lane_of(dict(name='Code Check', branch='main'), None, 'main'), None)
 
     def test_merge_group_precedes_every_workflow_name_rule(self):
-        runs = [run(i, name, 'merge_group') for i, name in enumerate(('CI', 'Nightly', 'Release', 'Maintenance'), 1)]
+        runs = [run(i, name, 'merge_group') for i, name in enumerate(('Code Check', 'Nightly', 'Release', 'Maintenance'), 1)]
         doc, by_key = lanes(runs)
         self.assertEqual([(lane['key'], lane['label']) for lane in doc['lanes']],
                          [('pr', 'PR'), ('main', '主干'), ('merge_queue', '合并队列'), ('daily', 'Daily'), ('release', '版本')])
@@ -71,8 +71,8 @@ class LaneClassificationTests(unittest.TestCase):
 
     def test_hidden_categories_have_no_points_or_excluded_counts(self):
         visible = [run(1, 'Nightly', 'schedule'), run(2, 'Release', 'push')]
-        hidden = [run(3, 'CI', 'workflow_call'), run(4, 'CI', 'schedule'),
-                  run(5, 'CI', 'push', branch='other'), run(6, event=None),
+        hidden = [run(3, 'Code Check', 'workflow_call'), run(4, 'Code Check', 'schedule'),
+                  run(5, 'Code Check', 'push', branch='other'), run(6, event=None),
                   run(7, 'Maintenance', 'push'), run(8, 'Nightly', 'workflow_call')]
         doc, by_key = lanes([*visible, *hidden, dict(hidden[0], attempt=2)])
         self.assertEqual(sorted(ident for lane in by_key.values() for ident in points(lane)), [1, 2])
@@ -92,22 +92,22 @@ class LaneClassificationTests(unittest.TestCase):
         broken['workflow_id'] = 1
         _, by_key = lanes([run(1), broken])
         self.assertEqual(points(by_key['pr']), [1, 2])
-        self.assertEqual(by_key['pr']['days'][-1][1]['workflow'], 'CI')
+        self.assertEqual(by_key['pr']['days'][-1][1]['workflow'], 'Code Check')
         self.assertEqual(by_key['pr']['summary']['failure'], 1)
 
     def test_manual_dispatch_is_flagged(self):
-        _, by_key = lanes([run(1, 'CI', 'workflow_dispatch', branch='main'), run(2, 'Nightly', 'workflow_dispatch', branch='main')])
+        _, by_key = lanes([run(1, 'Code Check', 'workflow_dispatch', branch='main'), run(2, 'Nightly', 'workflow_dispatch', branch='main')])
         self.assertTrue(by_key['main']['days'][-1][0]['manual'])
         self.assertTrue(by_key['daily']['days'][-1][0]['manual'])
 
 
 class LaneLayoutTests(unittest.TestCase):
     def test_all_lanes_share_one_calendar_axis(self):
-        runs = [run(1, 'CI', 'pull_request', '2026-09-21T02:00:00Z'),
-                run(2, 'CI', 'push', '2026-09-21T09:00:00Z', 'main'),
+        runs = [run(1, 'Code Check', 'pull_request', '2026-09-21T02:00:00Z'),
+                run(2, 'Code Check', 'push', '2026-09-21T09:00:00Z', 'main'),
                 run(3, 'Nightly', 'schedule', '2026-09-21T01:00:00Z', 'main'),
                 run(4, 'Release', 'push', '2026-09-21T10:00:00Z', '0.3.0'),
-                run(5, 'CI', 'pull_request', '2026-08-23T15:00:00Z')]  # 8/23 23:00, before the window
+                run(5, 'Code Check', 'pull_request', '2026-08-23T15:00:00Z')]  # 8/23 23:00, before the window
         doc, by_key = lanes(runs)
         self.assertEqual(len(doc['days']), 30)
         self.assertEqual((doc['days'][0], doc['days'][-1]), ('2026-08-24', '2026-09-22'))
@@ -195,7 +195,7 @@ class PullRequestNumberTests(unittest.TestCase):
     def test_ambiguous_closed_or_non_pr_runs_get_no_number(self):
         self.assertIsNone(pr_number(run(1, branch='feat'), self.PRS))
         self.assertIsNone(pr_number(run(1, branch='fix'), self.PRS))
-        self.assertIsNone(pr_number(run(1, 'CI', 'push', branch='feat', head_repo='fork-a/source'), self.PRS))
+        self.assertIsNone(pr_number(run(1, 'Code Check', 'push', branch='feat', head_repo='fork-a/source'), self.PRS))
 
     def test_lane_cells_mark_inferred_numbers(self):
         _, by_key = lanes([run(1, branch='feat', head_repo='fork-a/source'), run(2, pull_requests=[9])], prs=self.PRS)
@@ -218,9 +218,9 @@ class SnapshotLaneTests(unittest.TestCase):
                         html_url=f'https://github.com/{REPO}/actions/runs/{ident}', created_at=created, updated_at=created,
                         run_started_at=created, pull_requests=[], **extra)
         gh = Source()
-        gh.runs = [raw(1, 'CI', 'pull_request', 'feat', 50, head_repository={'full_name': 'fork/source'}),
-                   raw(2, 'CI', 'push', 'main', 40), raw(3, 'Nightly', 'schedule', 'main', 30),
-                   raw(4, 'Release', 'push', '0.3.0', 20), raw(5, 'CI', 'workflow_dispatch', 'main', 10)]
+        gh.runs = [raw(1, 'Code Check', 'pull_request_target', 'feat', 50, head_repository={'full_name': 'fork/source'}),
+                   raw(2, 'Code Check', 'push', 'main', 40), raw(3, 'Nightly', 'schedule', 'main', 30),
+                   raw(4, 'Release', 'push', '0.3.0', 20), raw(5, 'Code Check', 'workflow_dispatch', 'main', 10)]
         gh.prs = [dict(number=7, title='Feature', state='open', body='', user={'login': 'person'}, created_at='2026-09-20T00:00:00Z',
                        updated_at='2026-09-21T00:00:00Z', closed_at=None, merged_at=None, html_url=f'https://github.com/{REPO}/pull/7',
                        head={'ref': 'feat', 'sha': 'd' * 40, 'repo': {'full_name': 'fork/source'}}, base={'ref': 'main'})]

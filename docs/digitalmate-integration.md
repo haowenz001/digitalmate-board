@@ -4,7 +4,7 @@
 
 | 看板区域 | 依赖 | 现状 |
 | --- | --- | --- |
-| 质量门禁卡片 | workflow `CI` 上传的 artifact `ci-gates-reports` | 还没有 |
+| 质量门禁卡片 | workflow `CI` 上传的 artifact `ci-gates-reports` | 已接入（2026-10-28） |
 | 单测 / ST / E2E 卡片 | 名字为 `ut-results` / `st-results` / `e2e-results` 的 artifact | 现为 `hypium-result`、`orbit-st-<run_id>`、`e2e-nightly-<run_id>`，**名字不匹配** |
 | 覆盖率卡片 | `node-coverage-summary-<event>-<sha>` | 当前只写 `coverage-report.txt` |
 
@@ -22,7 +22,7 @@ test/cases/case-catalog.yaml        # 先空 catalog
 要点：
 
 - artifact 名必须是 `ci-gates-reports`，内容为 `gate-reports/*.json`（schema `ci-gates/gate-report@1`）。
-- `name: CI` 与本仓 `board-config.json` 的 `workflows.gate: ["^CI$"]` 对应；不要另起名字。
+- `name: CI` 只负责产出 `ci-gates-reports`，供“质量门禁”卡片；它不是 PR/主干 lane 的门禁来源。本仓 `board-config.json` 的 `workflows.gate` 是 `["^Code Check$", "^UT$"]`，与源仓实际的 PR 门禁一致。
 - 首期用空 catalog，并从 `pr-ready` 的 commands 里去掉 `verify-cases`；补用例时 `ready` 必须有 `file` + `owner` + 文件内 `@case <id>` marker。
 
 ### lane 映射建议

@@ -20,6 +20,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from .ci_lanes import PR_EVENTS
 from .config import Config
 from .github import GitHub, GitHubError
 from .testparse import PARSER_VERSION, parse_artifact_zip, summarize_tree
@@ -451,8 +452,8 @@ def collect_ci(ctx: Context) -> dict:
     per_workflow = []
     for wf in workflows:
         wf_runs = [r for r in runs if r["workflow_id"] == wf.get("id")]
-        main_runs = [r for r in wf_runs if r["branch"] == default and r["event"] != "pull_request"]
-        pr_runs = [r for r in wf_runs if r["event"] == "pull_request"]
+        main_runs = [r for r in wf_runs if r["branch"] == default and r["event"] not in PR_EVENTS]
+        pr_runs = [r for r in wf_runs if r["event"] in PR_EVENTS]
         per_workflow.append({
             "id": wf.get("id"), "name": wf.get("name"), "path": wf.get("path"), "state": wf.get("state"),
             "url": wf.get("html_url"),
@@ -462,7 +463,7 @@ def collect_ci(ctx: Context) -> dict:
             "last_main_run": main_runs[0] if main_runs else None,
         })
 
-    main_timeline = [r for r in runs if r["branch"] == default and r["event"] != "pull_request"][:40]
+    main_timeline = [r for r in runs if r["branch"] == default and r["event"] not in PR_EVENTS][:40]
     streak = 0
     for r in main_timeline:
         if r["conclusion"] == "failure":
@@ -529,8 +530,8 @@ def collect_ci(ctx: Context) -> dict:
         "workflows": per_workflow,
         "runs_sampled": len(runs),
         "overall": rate(runs),
-        "main": rate([r for r in runs if r["branch"] == default and r["event"] != "pull_request"]),
-        "pull_request": rate([r for r in runs if r["event"] == "pull_request"]),
+        "main": rate([r for r in runs if r["branch"] == default and r["event"] not in PR_EVENTS]),
+        "pull_request": rate([r for r in runs if r["event"] in PR_EVENTS]),
         "failures_7d": sum(1 for r in runs if r["conclusion"] == "failure" and (parse_ts(r["created_at"]) or week_ago) >= week_ago),
         "red_streak_main": streak,
         "main_timeline": main_timeline,

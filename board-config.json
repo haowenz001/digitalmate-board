@@ -2,7 +2,7 @@
   "review_sla_days": 3,
   "stale_days": 30,
   "workflows": {
-    "gate": ["^CI$"],
+    "gate": ["^Code Check$", "^UT$"],
     "daily": ["^Nightly$"],
     "release": ["release", "version"]
   },

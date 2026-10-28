@@ -51,7 +51,7 @@ python3 server.py          # http://127.0.0.1:8790，仅回环地址
 
 ## 源仓侧还需要
 
-看板只消费证据：`CI` workflow 的 `ci-gates-reports`、以及 `ut-results` / `st-results` / `e2e-results` 产物。DigitalMate 目前还没有这些，详见 [`docs/digitalmate-integration.md`](docs/digitalmate-integration.md)。
+看板只消费证据：`CI` workflow 的 `ci-gates-reports`（已接入），以及 `ut-results` / `st-results` / `e2e-results` 产物（DigitalMate 目前还没有这些）。详见 [`docs/digitalmate-integration.md`](docs/digitalmate-integration.md)。
 
 ## 文档
 
