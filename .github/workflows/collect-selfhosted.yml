@@ -5,7 +5,7 @@ name: Collect dashboard data (PAT)
 # the generated site/ back to this dashboard repository.
 on:
   schedule:
-    - cron: '17 2 * * *'
+    - cron: '17 * * * *'
   workflow_dispatch:
 
 permissions:
